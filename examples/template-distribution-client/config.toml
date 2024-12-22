@@ -1,0 +1,4 @@
+server_addr = "127.0.0.1:8442"
+# auth_pk = "9bwHCYnjhbHm4AS3pWg9MtAH83mzWohoJJJDELYBqZhDNqszDLc"
+coinbase_output_max_additional_size = 1
+coinbase_output_max_additional_sigops = 1
