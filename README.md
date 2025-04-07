@@ -6,6 +6,8 @@ tower-stratum
 <br>
 </h1>
 
+[![codecov](https://codecov.io/gh/lucasbalieiro/tower-stratum/graph/badge.svg?token=8TTBK5OK5T)](https://codecov.io/gh/lucasbalieiro/tower-stratum)
+
 <p align="center">
 🦀 Tower middleware for Bitcoin mining over <a href="https://github.com/stratum-mining/stratum">Stratum V2 Reference Implementation</a> ⛏️
 </p>
@@ -97,6 +99,6 @@ For the subprotocols that are not supported, Null handler implementations are pr
 
 Whenever `Sv2ServiceService<M, J, T>` is loaded with one of these Null handler implementations, the service will NOT support such subprotocol.
 
-# Licence
+# License
 
 [`MIT`](LICENSE)
