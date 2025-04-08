@@ -97,6 +97,72 @@ For the subprotocols that are not supported, Null handler implementations are pr
 
 Whenever `Sv2ServiceService<M, J, T>` is loaded with one of these Null handler implementations, the service will NOT support such subprotocol.
 
+## Inter-Service Communication
+
+`tower-stratum` supports inter-service communication between a `Sv2ServerService` and a `Sv2ClientService` pair through the sibling IO mechanism. This allows for building complex Sv2 applications that require bidirectional communication between a server and client service running **within the same application**.
+
+`tower-stratum` services are called "siblings" when they are tightly coupled with a server/client counterpart **within the same application**. This distinction is very important, and should not be confused with server/client communication across the wire, where server and client are actually different applications.
+
+The notion of sibling services allows for different use-cases, such as:
+- Mining Server + Mining Client (e.g.: Proxy)
+- Mining Server + Template Distribution Client (e.g.: Pool, [`pleblottery`](https://github.com/vinteumorg/pleblottery))
+- Mining Server + Job Declaration Client + Template Distribution Client (e.g.: JDC)
+- Job Declaration Server + Template Distribution Client (e.g.: JDS)
+
+### Sibling Service creation
+
+`Sv2ServerService::new_with_sibling` constructor also returns a `Sv2SiblingServerServiceIo`, which can be fed into constructor `Sv2ClientService::new_from_sibling_io`:
+
+```rust
+// Create a server along with a sibling_io
+//               v
+let (server, sibling_io) = Sv2ServerService::new_with_sibling_io(
+    server_config,
+    server_m_handler,
+    server_jd_handler,
+    server_td_handler,
+)?;
+
+// Create a client service using the sibling_io
+let client = Sv2ClientService::new_from_sibling_io(
+    client_config,
+    client_m_handler,
+    client_jd_handler,
+    client_td_handler,
+    sibling_io, // <- use sibling_io to construct client service
+)?;
+```
+
+### Communication Between Siblings
+
+Services can communicate with their siblings by sending requests via the sibling IO channels, which are triggered with special request variants.
+
+For example, here's an illustration of a `Sv2ServerService` receiving a `RequestToSv2Server::SendRequestToSiblingClientService`, which results in `Sv2ClientService` receiving some specific `RequestToSv2Client`.
+
+Please note that these two sibling services belong to the same application.
+
+```rust
+// Server sending request to its sibling client
+let response = server.call(RequestToSv2Server::SendRequestToSiblingClientService(
+    RequestToSv2Client::SomeRequest(...),
+)).await?;
+```
+
+![](./docs/SendRequestToSiblingClientService.png)
+
+Alternatively, here's an illustration of a `Sv2ClientService` receiving a `RequestToSv2Client::SendRequestToSiblingServerService`, which results in `Sv2ServerService` receiving some specific `RequestToSv2Server`.
+
+Please note that these two sibling services belong to the same application.
+
+```rust
+// Client sending request to its sibling server
+let response = client.call(RequestToSv2Client::SendRequestToSiblingServerService(
+    RequestToSv2Server::SomeRequest(...),
+)).await?;
+```
+
+![](./docs/SendRequestToSiblingServerService.png)
+
 # Licence
 
 [`MIT`](LICENSE)

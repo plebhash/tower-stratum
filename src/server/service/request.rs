@@ -1,6 +1,7 @@
 use roles_logic_sv2::common_messages_sv2::Protocol;
 use roles_logic_sv2::parsers::AnyMessage;
 
+use crate::client::service::request::RequestToSv2Client;
 use crate::server::service::response::Sv2MessageToClient;
 use crate::server::service::subprotocols::mining::request::RequestToSv2MiningServer;
 
@@ -10,12 +11,12 @@ pub enum RequestToSv2Server<'a> {
     /// Some Sv2 message addressed to the server.
     /// Could belong to any subprotocol.
     Message(Sv2MessageToServer<'a>),
-    /// Some trigger for the mining subprotocol service.
-    /// Does not include messages from the mining subprotocol, as they are covered by the `Message` variant.
+    /// Some trigger for the mining subprotocol service
     MiningTrigger(RequestToSv2MiningServer<'a>),
     // todo:
     // JobDeclarationTrigger(RequestToSv2JobDeclarationServer<'a>),
     // TemplateDistributionTrigger(RequestToSv2TemplateDistributionServer<'a>),
+    SendRequestToSiblingClientService(RequestToSv2Client<'a>),
 }
 
 /// A Sv2 message addressed to the server, to be used as the request type of [`crate::server::service::Sv2ServerService`].
@@ -37,5 +38,7 @@ pub enum RequestToSv2ServerError {
     UnsupportedMessage,
     FailedToSendResponseToClient,
     UnsupportedProtocol { protocol: Protocol },
+    FailedToSendRequestToSiblingClientService,
+    NoSiblingClientService,
     Reply(Sv2MessageToClient<'static>),
 }

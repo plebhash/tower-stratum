@@ -3,4 +3,5 @@
 pub enum RequestToSv2TemplateDistributionClientService {
     SetCoinbaseOutputConstraints(u32, u16),
     TransactionDataNeeded(u64),
+    // todo: SubmitSolution(solution)
 }

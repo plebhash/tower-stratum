@@ -25,6 +25,7 @@ pub mod error;
 pub mod layer;
 pub mod request;
 pub mod response;
+pub mod sibling;
 pub mod subprotocols;
 
 /// A [`tower::Service`] implementer that provides:

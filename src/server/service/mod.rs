@@ -1,3 +1,4 @@
+use crate::client::service::sibling::Sv2SiblingServerServiceIo;
 use crate::server::service::client::Sv2ServerServiceClient;
 use crate::server::service::config::Sv2ServerServiceConfig;
 use crate::server::service::connection::Sv2ConnectionClient;
@@ -5,8 +6,10 @@ use crate::server::service::error::Sv2ServerServiceError;
 use crate::server::service::request::{RequestToSv2Server, RequestToSv2ServerError};
 use crate::server::service::response::ResponseFromSv2Server;
 use crate::server::service::response::Sv2MessageToClient;
+use crate::server::service::sibling::Sv2SiblingClientServiceIo;
 use crate::server::service::subprotocols::mining::handler::NullSv2MiningServerHandler;
 use crate::server::service::subprotocols::mining::handler::Sv2MiningServerHandler;
+use crate::server::service::subprotocols::mining::request::RequestToSv2MiningServer;
 use crate::server::tcp::encrypted::start_encrypted_tcp_server;
 use crate::server::ClientIdGenerator;
 use roles_logic_sv2::common_messages_sv2::{
@@ -30,6 +33,7 @@ pub mod error;
 pub mod layer;
 pub mod request;
 pub mod response;
+pub mod sibling;
 pub mod subprotocols;
 
 /// A [`tower::Service`] implementer that provides:
@@ -62,6 +66,7 @@ where
     // todo: template_distribution_handler: T,
     shutdown_tx: broadcast::Sender<()>,
     alive: Arc<AtomicBool>,
+    sibling_client_service_io: Option<Sv2SiblingClientServiceIo>,
 }
 
 impl<M> Sv2ServerService<M>
@@ -69,9 +74,41 @@ where
     M: Sv2MiningServerHandler + Clone + Send + Sync + 'static,
 {
     /// Creates a new [`Sv2ServerService`]
+    ///
+    /// No sibling client service is required.
     pub fn new(
         config: Sv2ServerServiceConfig,
         mining_handler: M,
+        // todo: job_declaration_handler: J,
+        // todo: template_distribution_handler: T,
+    ) -> Result<Self, Sv2ServerServiceError> {
+        let sv2_server_service = Self::_new(config, mining_handler, None)?;
+        Ok(sv2_server_service)
+    }
+
+    /// Creates a new [`Sv2ServerService`] plus a new [`Sv2SiblingServerServiceIo`].
+    ///
+    /// The [`Sv2SiblingClientServiceIo`] can be used as input to [`crate::client::service::Sv2ClientService::new_from_sibling_io`] to create a sibling client service that pairs with this server.    
+    ///
+    /// todo: add unit tests for this function
+    pub fn new_with_sibling_io(
+        config: Sv2ServerServiceConfig,
+        mining_handler: M,
+    ) -> Result<(Self, Sv2SiblingServerServiceIo), Sv2ServerServiceError> {
+        let (sibling_client_service_io, sibling_server_service_io) =
+            Sv2SiblingClientServiceIo::new();
+        let sv2_server_service =
+            Self::_new(config, mining_handler, Some(sibling_client_service_io))?;
+        Ok((sv2_server_service, sibling_server_service_io))
+    }
+
+    // internal constructor
+    fn _new(
+        config: Sv2ServerServiceConfig,
+        mining_handler: M,
+        // todo: job_declaration_handler: J,
+        // todo: template_distribution_handler: T,
+        sibling_client_service_io: Option<Sv2SiblingClientServiceIo>,
     ) -> Result<Self, Sv2ServerServiceError> {
         Self::validate_protocol_handlers(&config)?;
 
@@ -82,6 +119,7 @@ where
             mining_handler: mining_handler,
             shutdown_tx: broadcast::channel(1).0,
             alive: Arc::new(AtomicBool::new(false)),
+            sibling_client_service_io,
         };
 
         Ok(sv2_server_service)
@@ -212,6 +250,43 @@ where
             }
         });
 
+        let shutdown_rx = self.shutdown_tx.subscribe();
+        let mut service = self.clone();
+
+        // spawn a task to handle requests from the sibling client service
+        if let Some(sibling_io) = service.sibling_client_service_io.clone() {
+            tokio::spawn(async move {
+                let mut shutdown_rx = shutdown_rx;
+
+                loop {
+                    tokio::select! {
+                        _ = shutdown_rx.recv() => {
+                            debug!("External mining trigger handler task received shutdown signal");
+                            break;
+                        }
+                        result = sibling_io.recv() => {
+                            match result {
+                                Ok(req) => {
+                                    debug!("Received request from sibling client service");
+
+                                    // Call the service with the request
+                                    if let Err(e) = service.call(req).await {
+                                        error!(
+                                            "Error handling request from sibling client service: {:?}",
+                                            e
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("Failed to receive request from sibling client service: {:?}", e);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         self.alive.store(true, Ordering::Relaxed);
         debug!("Sv2ServerService started");
 
@@ -328,7 +403,10 @@ where
         req: SetupConnection<'static>,
         client_id: u32,
     ) -> Result<ResponseFromSv2Server<'static>, RequestToSv2ServerError> {
-        debug!("Sv2ServerService received a SetupConnection request: {:?}", req);
+        debug!(
+            "Sv2ServerService received a SetupConnection request: {:?}",
+            req
+        );
 
         // 1) Check subprotocol
         if !self.config.supported_protocols().contains(&req.protocol) {
@@ -698,15 +776,36 @@ where
                         }
                     }
                 }
-                RequestToSv2Server::MiningTrigger(_) => {
-                    // Check if mining protocol is supported before routing to mining handler
-                    if Self::has_null_handler(Protocol::MiningProtocol) {
-                        return Err(RequestToSv2ServerError::UnsupportedProtocol {
-                            protocol: Protocol::MiningProtocol,
-                        });
+                RequestToSv2Server::MiningTrigger(req) => match req {
+                    RequestToSv2MiningServer::NewTemplate(new_template) => {
+                        debug!("Sv2ServerService received a NewTemplate message via external mining trigger");
+                        this.mining_handler.on_new_template(new_template).await
                     }
-
-                    todo!()
+                    RequestToSv2MiningServer::SetNewPrevHash(set_new_prev_hash) => {
+                        debug!("Sv2ServerService received a SetNewPrevHash message via external mining trigger");
+                        this.mining_handler
+                            .on_set_new_prev_hash(set_new_prev_hash)
+                            .await
+                    }
+                },
+                RequestToSv2Server::SendRequestToSiblingClientService(req) => {
+                    debug!(
+                        "Sv2ServerService received a SendExternalRequestToClientService request"
+                    );
+                    match this.sibling_client_service_io {
+                        Some(ref io) => {
+                            io.send(req.clone()).map_err(|_| {
+                                RequestToSv2ServerError::FailedToSendRequestToSiblingClientService
+                            })?;
+                            Ok(ResponseFromSv2Server::SentRequestToSiblingClientService(
+                                req,
+                            ))
+                        }
+                        None => {
+                            error!("No sibling client service on Sv2ServerService");
+                            Err(RequestToSv2ServerError::NoSiblingClientService)
+                        }
+                    }
                 }
             };
 
@@ -742,6 +841,13 @@ where
                     Err(_) => return Err(RequestToSv2ServerError::FailedToSendResponseToClient),
                 }
             }
+
+            // allow for recursive chaining of requests
+            let response = if let Ok(ResponseFromSv2Server::TriggerNewRequest(req)) = response {
+                this.call(req).await
+            } else {
+                response
+            };
 
             response
         })
