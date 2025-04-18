@@ -7,6 +7,11 @@ tower-stratum
 </h1>
 
 <p align="center">
+  <a href="https://codecov.io/gh/plebhash/tower-stratum" > 
+    <img src="https://codecov.io/gh/plebhash/tower-stratum/graph/badge.svg?token=6ME38GTAIP"/> 
+  </a>
+</p>
+<p align="center">
 🦀 Tower middleware for Bitcoin mining over <a href="https://github.com/stratum-mining/stratum">Stratum V2 Reference Implementation</a> ⛏️
 </p>
 
@@ -163,6 +168,6 @@ let response = client.call(RequestToSv2Client::SendRequestToSiblingServerService
 
 ![](./docs/SendRequestToSiblingServerService.png)
 
-# Licence
+# License
 
 [`MIT`](LICENSE)
