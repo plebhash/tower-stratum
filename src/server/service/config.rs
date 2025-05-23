@@ -50,6 +50,8 @@ pub struct Sv2ServerTcpConfig {
     pub priv_key: Secp256k1SecretKey,
     /// The validity of the server's certificate.
     pub cert_validity: u64,
+    /// TCP connection will be encrypted if this is set to true.
+    pub encrypted: bool,
 }
 
 /// Config parameters for the Mining subprotocol of a [`crate::server::service::Sv2ServerService`]

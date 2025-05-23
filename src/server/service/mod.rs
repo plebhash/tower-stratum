@@ -11,6 +11,7 @@ use crate::server::service::subprotocols::mining::handler::NullSv2MiningServerHa
 use crate::server::service::subprotocols::mining::handler::Sv2MiningServerHandler;
 use crate::server::service::subprotocols::mining::request::RequestToSv2MiningServer;
 use crate::server::tcp::encrypted::start_encrypted_tcp_server;
+use crate::server::tcp::unencrypted::start_unencrypted_tcp_server;
 use crate::server::ClientIdGenerator;
 use roles_logic_sv2::common_messages_sv2::{
     Protocol, SetupConnection, SetupConnectionError, SetupConnectionSuccess,
@@ -24,7 +25,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::{broadcast, RwLock};
 use tower::Service;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 pub mod client;
 pub mod config;
@@ -128,16 +129,31 @@ where
 
         let shutdown_rx = self.shutdown_tx.subscribe();
 
-        start_encrypted_tcp_server(
-            self.config.tcp_config.listen_address,
-            self.config.tcp_config.pub_key,
-            self.config.tcp_config.priv_key,
-            self.config.tcp_config.cert_validity,
-            new_client_tx,
-            shutdown_rx.resubscribe(),
-        )
-        .await
-        .map_err(|_e| Sv2ServerServiceError::TcpServerError)?;
+        match self.config.tcp_config.encrypted {
+            true => {
+                info!("Starting encrypted TCP server");
+                start_encrypted_tcp_server(
+                    self.config.tcp_config.listen_address,
+                    self.config.tcp_config.pub_key,
+                    self.config.tcp_config.priv_key,
+                    self.config.tcp_config.cert_validity,
+                    new_client_tx.clone(),
+                    shutdown_rx.resubscribe(),
+                )
+                .await
+                .map_err(|_e| Sv2ServerServiceError::TcpServerError)?;
+            }
+            false => {
+                info!("Starting unencrypted TCP server");
+                start_unencrypted_tcp_server(
+                    self.config.tcp_config.listen_address,
+                    new_client_tx,
+                    shutdown_rx.resubscribe(),
+                )
+                .await
+                .map_err(|_e| Sv2ServerServiceError::TcpServerError)?;
+            }
+        }
 
         let clients = self.clients.clone();
         let inactivity_limit = self.config.inactivity_limit;
@@ -883,7 +899,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::client::tcp::encrypted::Sv2EncryptedTcpClient;
+    use crate::client::tcp::Sv2TcpClient;
     use crate::server::service::config::Sv2ServerServiceJobDeclarationConfig;
     use crate::server::service::config::Sv2ServerServiceMiningConfig;
     use crate::server::service::config::Sv2ServerTcpConfig;
@@ -921,6 +937,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -945,7 +962,7 @@ mod tests {
         sv2_server_service.start().await.unwrap();
 
         // Create a TCP client to establish a connection
-        let client = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection_ok = SetupConnection {
             protocol: Protocol::JobDeclarationProtocol,
@@ -962,7 +979,7 @@ mod tests {
 
         // Send SetupConnection message through the client
         client
-            .io
+            .io()
             .send_message(
                 setup_connection_ok.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -971,7 +988,7 @@ mod tests {
             .unwrap();
 
         // Wait for and verify server's response
-        let response = client.io.rx.recv().await.unwrap();
+        let response = client.io().rx.recv().await.unwrap();
         match response {
             Sv2MessageFrame::Sv2(mut frame) => {
                 let header = frame.get_header().unwrap();
@@ -1039,6 +1056,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -1063,8 +1081,8 @@ mod tests {
         sv2_server_service.start().await.unwrap();
 
         // Create a TCP client to establish a connection
-        let client_1 = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
-        let client_2 = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client_1 = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
+        let client_2 = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection_ok = SetupConnection {
             protocol: Protocol::JobDeclarationProtocol,
@@ -1081,7 +1099,7 @@ mod tests {
 
         // Send SetupConnection message through the first client
         client_1
-            .io
+            .io()
             .send_message(
                 setup_connection_ok.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1091,7 +1109,7 @@ mod tests {
 
         // Send SetupConnection message through the second client
         client_2
-            .io
+            .io()
             .send_message(
                 setup_connection_ok.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1100,8 +1118,8 @@ mod tests {
             .unwrap();
 
         // Receive the responses
-        let _response_1 = client_1.io.rx.recv().await.unwrap();
-        let _response_2 = client_2.io.rx.recv().await.unwrap();
+        let _response_1 = client_1.io().rx.recv().await.unwrap();
+        let _response_2 = client_2.io().rx.recv().await.unwrap();
 
         // Verify that the clients were added to the service
         assert_eq!(sv2_server_service.get_client_count().await, 2);
@@ -1132,6 +1150,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -1156,7 +1175,7 @@ mod tests {
         sv2_server_service.start().await.unwrap();
 
         // Create a TCP client to establish a connection
-        let client = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection_bad_protocol = SetupConnection {
             protocol: Protocol::TemplateDistributionProtocol, // unsupported protocol
@@ -1173,7 +1192,7 @@ mod tests {
 
         // Send SetupConnection message through the client
         client
-            .io
+            .io()
             .send_message(
                 setup_connection_bad_protocol.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1182,7 +1201,7 @@ mod tests {
             .unwrap();
 
         // Receive the response
-        let response = client.io.rx.recv().await.unwrap();
+        let response = client.io().rx.recv().await.unwrap();
         match response {
             Sv2MessageFrame::Sv2(mut frame) => {
                 let header = frame.get_header().unwrap();
@@ -1235,6 +1254,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -1259,7 +1279,7 @@ mod tests {
         sv2_server_service.start().await.unwrap();
 
         // Test min version too high
-        let client = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection_bad_min_version = SetupConnection {
             protocol: Protocol::JobDeclarationProtocol,
@@ -1276,7 +1296,7 @@ mod tests {
 
         // Send SetupConnection message through the client
         client
-            .io
+            .io()
             .send_message(
                 setup_connection_bad_min_version.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1285,7 +1305,7 @@ mod tests {
             .unwrap();
 
         // Receive the response
-        let response = client.io.rx.recv().await.unwrap();
+        let response = client.io().rx.recv().await.unwrap();
         match response {
             Sv2MessageFrame::Sv2(mut frame) => {
                 let header = frame.get_header().unwrap();
@@ -1307,7 +1327,7 @@ mod tests {
         }
 
         // Test max version too low
-        let client = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection_bad_max_version = SetupConnection {
             protocol: Protocol::JobDeclarationProtocol,
@@ -1324,7 +1344,7 @@ mod tests {
 
         // Send SetupConnection message through the client
         client
-            .io
+            .io()
             .send_message(
                 setup_connection_bad_max_version.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1333,7 +1353,7 @@ mod tests {
             .unwrap();
 
         // Receive the response
-        let response = client.io.rx.recv().await.unwrap();
+        let response = client.io().rx.recv().await.unwrap();
         match response {
             Sv2MessageFrame::Sv2(mut frame) => {
                 let header = frame.get_header().unwrap();
@@ -1386,6 +1406,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -1409,7 +1430,7 @@ mod tests {
         sv2_server_service.start().await.unwrap();
 
         // Create a TCP client to establish a connection
-        let client = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection_unsupported_flags = SetupConnection {
             protocol: Protocol::JobDeclarationProtocol,
@@ -1426,7 +1447,7 @@ mod tests {
 
         // Send SetupConnection message through the client
         client
-            .io
+            .io()
             .send_message(
                 setup_connection_unsupported_flags.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1435,7 +1456,7 @@ mod tests {
             .unwrap();
 
         // Receive the response
-        let response = client.io.rx.recv().await.unwrap();
+        let response = client.io().rx.recv().await.unwrap();
         match response {
             Sv2MessageFrame::Sv2(mut frame) => {
                 let header = frame.get_header().unwrap();
@@ -1476,6 +1497,7 @@ mod tests {
             )
             .expect("failed"),
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let mining_config = Sv2ServerServiceMiningConfig {
@@ -1530,6 +1552,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -1581,6 +1604,7 @@ mod tests {
             pub_key,
             priv_key,
             cert_validity: 3600,
+            encrypted: true,
         };
 
         let job_declaration_config = Sv2ServerServiceJobDeclarationConfig {
@@ -1605,8 +1629,8 @@ mod tests {
         sv2_server_service.start().await.unwrap();
 
         // Create and connect multiple clients
-        let client1 = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
-        let client2 = Sv2EncryptedTcpClient::new(server_addr, None).await.unwrap();
+        let client1 = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
+        let client2 = Sv2TcpClient::new(server_addr, true, None).await.unwrap();
 
         let setup_connection = SetupConnection {
             protocol: Protocol::JobDeclarationProtocol,
@@ -1623,7 +1647,7 @@ mod tests {
 
         // Send SetupConnection messages
         client1
-            .io
+            .io()
             .send_message(
                 setup_connection.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1631,7 +1655,7 @@ mod tests {
             .await
             .unwrap();
         client2
-            .io
+            .io()
             .send_message(
                 setup_connection.clone().into(),
                 const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
@@ -1650,7 +1674,115 @@ mod tests {
         assert_eq!(final_count, 0);
 
         // Try to receive messages from clients - should fail as connections are closed
-        assert!(client1.io.recv_message().await.is_err());
-        assert!(client2.io.recv_message().await.is_err());
+        assert!(client1.io().recv_message().await.is_err());
+        assert!(client2.io().recv_message().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn sv2_server_unencrypted_ok() {
+        let server_port = get_available_port();
+        let server_addr = std::net::SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+            server_port,
+        );
+        let pub_key = key_utils::Secp256k1PublicKey::try_from(
+            "9auqWEzQDVyd2oe1JVGFLMLHZtCo2FFqZwtKA5gd9xbuEu7PH72".to_string(),
+        )
+        .expect("failed");
+        let priv_key = key_utils::Secp256k1SecretKey::try_from(
+            "mkDLTBBRxdBv998612qipDYoTK3YUrqLe8uWw7gu3iXbSrn2n".to_string(),
+        )
+        .expect("failed");
+
+        let tcp_config = crate::server::service::config::Sv2ServerTcpConfig {
+            listen_address: server_addr,
+            pub_key,
+            priv_key,
+            cert_validity: 3600,
+            encrypted: false, // <-- unencrypted
+        };
+
+        let job_declaration_config =
+            crate::server::service::config::Sv2ServerServiceJobDeclarationConfig {
+                supported_flags: 0,
+            };
+
+        let sv2_server_config = crate::server::service::Sv2ServerServiceConfig {
+            min_supported_version: 2,
+            max_supported_version: 2,
+            inactivity_limit: 1,
+            tcp_config,
+            mining_config: None,
+            job_declaration_config: Some(job_declaration_config),
+            template_distribution_config: None,
+        };
+
+        let mining_handler =
+            crate::server::service::subprotocols::mining::handler::NullSv2MiningServerHandler;
+
+        let mut sv2_server_service =
+            crate::server::service::Sv2ServerService::new(sv2_server_config, mining_handler)
+                .unwrap();
+
+        sv2_server_service.start().await.unwrap();
+
+        // Create a TCP client to establish a connection (unencrypted)
+        let client = Sv2TcpClient::new(server_addr, false, None).await.unwrap();
+
+        let setup_connection_ok = roles_logic_sv2::common_messages_sv2::SetupConnection {
+            protocol: roles_logic_sv2::common_messages_sv2::Protocol::JobDeclarationProtocol,
+            min_version: 2,
+            max_version: 2,
+            flags: 0,
+            endpoint_host: "".to_string().try_into().unwrap(),
+            endpoint_port: 0,
+            vendor: "".to_string().try_into().unwrap(),
+            hardware_version: "".to_string().try_into().unwrap(),
+            firmware: "".to_string().try_into().unwrap(),
+            device_id: "".to_string().try_into().unwrap(),
+        };
+
+        // Send SetupConnection message through the client
+        client
+            .io()
+            .send_message(
+                setup_connection_ok.clone().into(),
+                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+            )
+            .await
+            .unwrap();
+
+        // Wait for and verify server's response
+        let response = client.io().rx.recv().await.unwrap();
+        match response {
+            crate::Sv2MessageFrame::Sv2(mut frame) => {
+                let header = frame.get_header().unwrap();
+                assert_eq!(
+                    header.msg_type(),
+                    const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS
+                );
+                let mut payload = frame.payload().to_vec();
+                let message: Result<roles_logic_sv2::parsers::AnyMessage<'_>, _> =
+                    (header.msg_type(), payload.as_mut_slice()).try_into();
+                if let Ok(roles_logic_sv2::parsers::AnyMessage::Common(
+                    roles_logic_sv2::parsers::CommonMessages::SetupConnectionSuccess(success),
+                )) = message
+                {
+                    assert_eq!(success.used_version, 2);
+                    assert_eq!(success.flags, 0);
+                } else {
+                    panic!("expected SetupConnectionSuccess message");
+                }
+            }
+            _ => panic!("expected Sv2Frame"),
+        }
+
+        // Verify that the client was added to the service
+        assert_eq!(sv2_server_service.get_client_count().await, 1);
+
+        // sleep to trigger removal of connection due to inactivity (limit is 1s)
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+        assert_eq!(sv2_server_service.get_client_count().await, 0);
     }
 }

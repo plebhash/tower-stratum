@@ -9,7 +9,7 @@ use crate::Sv2MessageIo;
 ///
 /// Note: [`Sv2UnencryptedTcpClient`] is NOT a [`tower::Service`],
 /// but rather a helper primitive to facilitate establishing unencrypted TCP connections
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sv2UnencryptedTcpClient {
     /// IO of Sv2 Message Frames
     pub io: Sv2MessageIo,
@@ -28,6 +28,10 @@ impl Sv2UnencryptedTcpClient {
         let sv2_message_io = Sv2MessageIo { rx, tx };
         tracing::info!("connected to: {}", server_addr);
         Some(Self { io: sv2_message_io })
+    }
+
+    pub fn shutdown(&self) {
+        self.io.shutdown();
     }
 }
 

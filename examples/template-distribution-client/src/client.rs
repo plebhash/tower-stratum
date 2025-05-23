@@ -38,6 +38,7 @@ impl MyTemplateDistributionClient {
                 server_addr: config.server_addr,
                 auth_pk: config.auth_pk,
             }),
+            encrypted: true
         };
 
         // Create the handler instance

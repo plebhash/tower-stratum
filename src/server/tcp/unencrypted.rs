@@ -50,7 +50,7 @@ pub async fn start_unencrypted_tcp_server(
 
 #[cfg(test)]
 mod tests {
-    use crate::client::tcp::unencrypted::Sv2UnencryptedTcpClient;
+    use crate::client::tcp::Sv2TcpClient;
     use crate::Sv2MessageFrame;
     use const_sv2::{MESSAGE_TYPE_SETUP_CONNECTION, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS};
     use framing_sv2::framing::Sv2Frame;
@@ -97,7 +97,7 @@ mod tests {
             .expect("Server should start successfully");
 
         // connect client
-        let sv2_unencrypted_tcp_client = Sv2UnencryptedTcpClient::new(server_addr).await.unwrap();
+        let sv2_unencrypted_tcp_client = Sv2TcpClient::new(server_addr, false, None).await.unwrap();
 
         // SetupConnection message
         let setup_connection = SetupConnection {
@@ -126,7 +126,7 @@ mod tests {
 
         // send SetupConnection from client
         sv2_unencrypted_tcp_client
-            .io
+            .io()
             .tx
             .send(setup_connection_frame)
             .await
@@ -175,7 +175,7 @@ mod tests {
             .unwrap();
 
         // receive frame on client side
-        let received_frame = sv2_unencrypted_tcp_client.io.rx.recv().await.unwrap();
+        let received_frame = sv2_unencrypted_tcp_client.io().rx.recv().await.unwrap();
 
         // assert received frame
         if let Sv2MessageFrame::Sv2(frame) = received_frame {

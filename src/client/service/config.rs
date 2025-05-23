@@ -27,6 +27,8 @@ pub struct Sv2ClientServiceConfig {
     pub job_declaration_config: Option<Sv2ClientServiceJobDeclarationConfig>,
     /// Configuration specific to the Template Distribution protocol
     pub template_distribution_config: Option<Sv2ClientServiceTemplateDistributionConfig>,
+    /// The TCP connection will be encrypted if this is set to true.
+    pub encrypted: bool,
 }
 
 impl Sv2ClientServiceConfig {

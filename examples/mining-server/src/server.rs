@@ -22,6 +22,7 @@ impl MyMiningServer {
             pub_key: config.pub_key,
             priv_key: config.priv_key,
             cert_validity: config.cert_validity,
+            encrypted: true,
         };
 
         let service_config = Sv2ServerServiceConfig {
