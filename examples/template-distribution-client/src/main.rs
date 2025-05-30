@@ -45,14 +45,11 @@ async fn main() -> anyhow::Result<()> {
 mod tests {
     use crate::client::MyTemplateDistributionClient;
     use crate::config::MyTemplateDistributionClientConfig;
-    use const_sv2::{
-        MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS, MESSAGE_TYPE_NEW_TEMPLATE,
-        MESSAGE_TYPE_SET_NEW_PREV_HASH, MESSAGE_TYPE_SETUP_CONNECTION,
-        MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
-    };
     use integration_tests_sv2::{
-        sniffer::MessageDirection, start_sniffer, start_template_provider,
+        interceptor::MessageDirection, start_sniffer, start_template_provider,
     };
+    use roles_logic_sv2::common_messages_sv2::*;
+    use roles_logic_sv2::template_distribution_sv2::*;
 
     #[tokio::test]
     async fn test_template_distribution_client() {
@@ -60,7 +57,7 @@ mod tests {
 
         let (_tp, tp_addr) = start_template_provider(None);
 
-        let (sniffer, sniffer_addr) = start_sniffer("".to_string(), tp_addr, false, None).await;
+        let (sniffer, sniffer_addr) = start_sniffer("", tp_addr, false, vec![]);
 
         let config = MyTemplateDistributionClientConfig {
             server_addr: sniffer_addr,

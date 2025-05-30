@@ -33,7 +33,7 @@ impl MyMiningClient {
                 server_addr: config.server_addr,
                 auth_pk: config.auth_pk,
                 // REQUIRES_VERSION_ROLLING, !REQUIRES_WORK_SELECTION, REQUIRES_STANDARD_JOBS
-                setup_connection_flags: 0b001 as u32,
+                setup_connection_flags: 0b001_u32,
             }),
             job_declaration_config: None,
             template_distribution_config: None,

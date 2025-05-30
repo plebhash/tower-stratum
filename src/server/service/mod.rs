@@ -113,7 +113,7 @@ where
             config: config.clone(),
             clients: Arc::new(RwLock::new(HashMap::new())),
             client_id_generator: ClientIdGenerator::new(),
-            mining_handler: mining_handler,
+            mining_handler,
             shutdown_tx: broadcast::channel(1).0,
             alive: Arc::new(AtomicBool::new(false)),
             sibling_client_service_io,
@@ -347,14 +347,12 @@ where
                     protocol: Protocol::MiningProtocol,
                 });
             }
-        } else {
-            if !is_null_mining_handler {
-                return Err(
-                    Sv2ServerServiceError::NonNullHandlerForUnsupportedProtocol {
-                        protocol: Protocol::MiningProtocol,
-                    },
-                );
-            }
+        } else if !is_null_mining_handler {
+            return Err(
+                Sv2ServerServiceError::NonNullHandlerForUnsupportedProtocol {
+                    protocol: Protocol::MiningProtocol,
+                },
+            );
         }
 
         // todo: add checks for job_declaration_handler and template_distribution_handler
@@ -419,7 +417,8 @@ where
             let response = ResponseFromSv2Server::SendReplyToClient(Sv2MessageToClient {
                 client_id,
                 message: setup_connection_error.into(),
-                message_type: const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
+                message_type:
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
             });
             return Ok(response);
         }
@@ -439,7 +438,8 @@ where
             let response = ResponseFromSv2Server::SendReplyToClient(Sv2MessageToClient {
                 client_id,
                 message: setup_connection_error.into(),
-                message_type: const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
+                message_type:
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
             });
             return Ok(response);
         }
@@ -485,7 +485,8 @@ where
             let response = ResponseFromSv2Server::SendReplyToClient(Sv2MessageToClient {
                 client_id,
                 message: setup_connection_error.into(),
-                message_type: const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
+                message_type:
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
             });
 
             return Ok(response);
@@ -537,7 +538,8 @@ where
         let response = ResponseFromSv2Server::SendReplyToClient(Sv2MessageToClient {
             client_id,
             message: setup_connection_success.into(),
-            message_type: const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
+            message_type:
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
         });
 
         Ok(response)
@@ -870,13 +872,12 @@ where
             }
 
             // allow for recursive chaining of requests
-            let response = if let Ok(ResponseFromSv2Server::TriggerNewRequest(req)) = response {
+
+            if let Ok(ResponseFromSv2Server::TriggerNewRequest(req)) = response {
                 this.call(req).await
             } else {
                 response
-            };
-
-            response
+            }
         })
     }
 }
@@ -965,7 +966,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_ok.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -977,7 +978,7 @@ mod tests {
                 let header = frame.get_header().unwrap();
                 assert_eq!(
                     header.msg_type(),
-                    const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS
                 );
                 let mut payload = frame.payload().to_vec();
                 let message: Result<AnyMessage<'_>, _> =
@@ -1084,7 +1085,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_ok.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1094,7 +1095,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_ok.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1176,7 +1177,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_bad_protocol.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1188,7 +1189,7 @@ mod tests {
                 let header = frame.get_header().unwrap();
                 assert_eq!(
                     header.msg_type(),
-                    const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
                 );
                 let mut payload = frame.payload().to_vec();
                 let message: Result<AnyMessage<'_>, _> =
@@ -1279,7 +1280,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_bad_min_version.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1291,7 +1292,7 @@ mod tests {
                 let header = frame.get_header().unwrap();
                 assert_eq!(
                     header.msg_type(),
-                    const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
                 );
                 let mut payload = frame.payload().to_vec();
                 let message: Result<AnyMessage<'_>, _> =
@@ -1327,7 +1328,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_bad_max_version.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1339,7 +1340,7 @@ mod tests {
                 let header = frame.get_header().unwrap();
                 assert_eq!(
                     header.msg_type(),
-                    const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
                 );
                 let mut payload = frame.payload().to_vec();
                 let message: Result<AnyMessage<'_>, _> =
@@ -1429,7 +1430,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection_unsupported_flags.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1441,7 +1442,7 @@ mod tests {
                 let header = frame.get_header().unwrap();
                 assert_eq!(
                     header.msg_type(),
-                    const_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
                 );
                 let mut payload = frame.payload().to_vec();
                 let message: Result<AnyMessage<'_>, _> =
@@ -1626,7 +1627,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();
@@ -1634,7 +1635,7 @@ mod tests {
             .io
             .send_message(
                 setup_connection.clone().into(),
-                const_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION,
             )
             .await
             .unwrap();

@@ -46,13 +46,11 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use const_sv2::{
-        MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL,
-        MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL_SUCCESS, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
-    };
     use integration_tests_sv2::{
-        sniffer::MessageDirection, start_mining_device_sv2, start_sniffer,
+        interceptor::MessageDirection, start_mining_device_sv2, start_sniffer,
     };
+    use roles_logic_sv2::common_messages_sv2::*;
+    use roles_logic_sv2::mining_sv2::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[tokio::test]
@@ -81,12 +79,10 @@ mod tests {
         );
 
         // Start sniffer A
-        let (sniffer_a, sniffer_a_addr) =
-            start_sniffer("A".to_string(), server_addr, false, None).await;
+        let (sniffer_a, sniffer_a_addr) = start_sniffer("A", server_addr, false, vec![]);
 
         // Start sniffer B
-        let (sniffer_b, sniffer_b_addr) =
-            start_sniffer("B".to_string(), server_addr, false, None).await;
+        let (sniffer_b, sniffer_b_addr) = start_sniffer("B", server_addr, false, vec![]);
 
         // Start mining device A
         start_mining_device_sv2(
@@ -97,8 +93,7 @@ mod tests {
             0,
             None,
             true,
-        )
-        .await;
+        );
 
         // Start mining device B
         start_mining_device_sv2(
@@ -109,8 +104,7 @@ mod tests {
             0,
             None,
             true,
-        )
-        .await;
+        );
 
         // Wait for the setup connection success message
         sniffer_a

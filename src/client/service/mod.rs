@@ -12,14 +12,14 @@ use crate::client::service::subprotocols::template_distribution::handler::Sv2Tem
 use crate::client::service::subprotocols::template_distribution::request::RequestToSv2TemplateDistributionClientService;
 use crate::client::service::subprotocols::template_distribution::response::ResponseToTemplateDistributionTrigger;
 use crate::client::tcp::encrypted::Sv2EncryptedTcpClient;
-use const_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
-use const_sv2::MESSAGE_TYPE_OPEN_EXTENDED_MINING_CHANNEL;
-use const_sv2::MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL;
-use const_sv2::MESSAGE_TYPE_SETUP_CONNECTION;
+use roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION;
 use roles_logic_sv2::common_messages_sv2::{Protocol, SetupConnection};
+use roles_logic_sv2::mining_sv2::MESSAGE_TYPE_OPEN_EXTENDED_MINING_CHANNEL;
+use roles_logic_sv2::mining_sv2::MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL;
 use roles_logic_sv2::mining_sv2::{OpenExtendedMiningChannel, OpenStandardMiningChannel};
 use roles_logic_sv2::parsers::{AnyMessage, CommonMessages, Mining, TemplateDistribution};
 use roles_logic_sv2::template_distribution_sv2::CoinbaseOutputConstraints;
+use roles_logic_sv2::template_distribution_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -153,14 +153,12 @@ where
                     protocol: Protocol::MiningProtocol,
                 });
             }
-        } else {
-            if !is_null_mining_handler {
-                return Err(
-                    Sv2ClientServiceError::NonNullHandlerForUnsupportedProtocol {
-                        protocol: Protocol::MiningProtocol,
-                    },
-                );
-            }
+        } else if !is_null_mining_handler {
+            return Err(
+                Sv2ClientServiceError::NonNullHandlerForUnsupportedProtocol {
+                    protocol: Protocol::MiningProtocol,
+                },
+            );
         }
 
         // Check if template_distribution_handler is NullSv2TemplateDistributionClientHandler
@@ -174,14 +172,12 @@ where
                     protocol: Protocol::TemplateDistributionProtocol,
                 });
             }
-        } else {
-            if !is_null_template_distribution_handler {
-                return Err(
-                    Sv2ClientServiceError::NonNullHandlerForUnsupportedProtocol {
-                        protocol: Protocol::TemplateDistributionProtocol,
-                    },
-                );
-            }
+        } else if !is_null_template_distribution_handler {
+            return Err(
+                Sv2ClientServiceError::NonNullHandlerForUnsupportedProtocol {
+                    protocol: Protocol::TemplateDistributionProtocol,
+                },
+            );
         }
         Ok(())
     }
@@ -293,7 +289,7 @@ where
         let tcp_client = match protocol {
             Protocol::MiningProtocol => {
                 if self.mining_tcp_client.read().await.is_none() {
-                    let config = self.config.mining_config.as_ref().ok_or_else(|| {
+                    let config = self.config.mining_config.as_ref().ok_or({
                         RequestToSv2ClientError::UnsupportedProtocol {
                             protocol: Protocol::MiningProtocol,
                         }
@@ -321,7 +317,7 @@ where
             }
             Protocol::JobDeclarationProtocol => {
                 if self.job_declaration_tcp_client.read().await.is_none() {
-                    let config = self.config.job_declaration_config.as_ref().ok_or_else(|| {
+                    let config = self.config.job_declaration_config.as_ref().ok_or({
                         RequestToSv2ClientError::UnsupportedProtocol {
                             protocol: Protocol::JobDeclarationProtocol,
                         }
@@ -349,13 +345,11 @@ where
             }
             Protocol::TemplateDistributionProtocol => {
                 if self.template_distribution_tcp_client.read().await.is_none() {
-                    let config = self
-                        .config
-                        .template_distribution_config
-                        .as_ref()
-                        .ok_or_else(|| RequestToSv2ClientError::UnsupportedProtocol {
+                    let config = self.config.template_distribution_config.as_ref().ok_or(
+                        RequestToSv2ClientError::UnsupportedProtocol {
                             protocol: Protocol::TemplateDistributionProtocol,
-                        })?;
+                        },
+                    )?;
                     let tcp_client = Sv2EncryptedTcpClient::new(config.server_addr, config.auth_pk)
                         .await
                         .ok_or_else(|| {
@@ -397,7 +391,7 @@ where
         };
 
         let setup_connection = SetupConnection {
-            protocol: protocol,
+            protocol,
             min_version: self.config.min_supported_version,
             max_version: self.config.max_supported_version,
             flags: supported_flags,
@@ -889,11 +883,12 @@ where
                                         user_identity
                                     ))
                                     })?,
-                                nominal_hash_rate: nominal_hash_rate.into(),
+                                nominal_hash_rate,
                                 max_target: max_target.try_into().map_err(|_| {
-                                    RequestToSv2ClientError::U256ConversionError(format!(
+                                    RequestToSv2ClientError::U256ConversionError(
                                         "Failed to convert max_target to fixed-size array"
-                                    ))
+                                            .to_string(),
+                                    )
                                 })?,
                             }),
                         );
@@ -946,7 +941,7 @@ where
 
                         let open_extended_mining_channel = AnyMessage::Mining(
                             Mining::OpenExtendedMiningChannel(OpenExtendedMiningChannel {
-                                request_id: request_id.into(),
+                                request_id,
                                 user_identity: user_identity
                                     .clone()
                                     .into_bytes()
@@ -957,13 +952,14 @@ where
                                         user_identity,
                                     ))
                                     })?,
-                                nominal_hash_rate: nominal_hash_rate.into(),
+                                nominal_hash_rate,
                                 max_target: max_target.try_into().map_err(|_| {
-                                    RequestToSv2ClientError::U256ConversionError(format!(
+                                    RequestToSv2ClientError::U256ConversionError(
                                         "Failed to convert max_target to fixed-size array"
-                                    ))
+                                            .to_string(),
+                                    )
                                 })?,
-                                min_extranonce_size: min_rollable_extranonce_size.into(),
+                                min_extranonce_size: min_rollable_extranonce_size,
                             }),
                         );
 
@@ -1070,13 +1066,12 @@ where
             };
 
             // allows for recursive chaining of requests
-            let response = if let Ok(ResponseFromSv2Client::TriggerNewRequest(request)) = response {
+
+            if let Ok(ResponseFromSv2Client::TriggerNewRequest(request)) = response {
                 this.call(request).await
             } else {
                 response
-            };
-
-            response
+            }
         })
     }
 }
@@ -1104,8 +1099,7 @@ mod tests {
     use crate::server::service::subprotocols::mining::handler::Sv2MiningServerHandler;
     use crate::server::service::subprotocols::mining::request::RequestToSv2MiningServer;
     use crate::server::service::Sv2ServerService;
-    use const_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
-    use integration_tests_sv2::sniffer::MessageDirection;
+    use integration_tests_sv2::interceptor::MessageDirection;
     use integration_tests_sv2::start_sniffer;
     use integration_tests_sv2::start_template_provider;
     use key_utils::Secp256k1PublicKey;
@@ -1124,6 +1118,7 @@ mod tests {
         SetNewPrevHash as SetNewPrevHashMining, SetTarget, SubmitSharesError, SubmitSharesSuccess,
         UpdateChannelError,
     };
+    use roles_logic_sv2::template_distribution_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
     use roles_logic_sv2::template_distribution_sv2::{
         NewTemplate, RequestTransactionDataError, RequestTransactionDataSuccess, SetNewPrevHash,
     };
@@ -1820,8 +1815,7 @@ mod tests {
         let (_tp, tp_address) = start_template_provider(None);
 
         // Start a sniffer to intercept messages between the client and the Template Provider.
-        let (tp_sniffer, tp_sniffer_addr) =
-            start_sniffer("".to_string(), tp_address, false, None).await;
+        let (tp_sniffer, tp_sniffer_addr) = start_sniffer("", tp_address, false, vec![]);
 
         // Update the client configuration to use the sniffer's address.
         if let Some(ref mut tdc) = client_config.template_distribution_config {
@@ -1841,8 +1835,8 @@ mod tests {
             .clone();
 
         // Initialize the handlers for TemplateDistribution and MiningServer.
-        let tdc_handler = SiblingIoTemplateDistributionClientHandler::default();
-        let mining_server_handler = DummyMiningServerHandler::default();
+        let tdc_handler = SiblingIoTemplateDistributionClientHandler;
+        let mining_server_handler = DummyMiningServerHandler;
 
         // Create the Sv2ServerService and its sibling IO for communication with the client.
         let (
@@ -1868,14 +1862,8 @@ mod tests {
         client_service
             .call(RequestToSv2Client::TemplateDistributionTrigger(
                 RequestToSv2TemplateDistributionClientService::SetCoinbaseOutputConstraints(
-                    template_distribution_config
-                        .coinbase_output_constraints
-                        .0
-                        .clone(),
-                    template_distribution_config
-                        .coinbase_output_constraints
-                        .1
-                        .clone(),
+                    template_distribution_config.coinbase_output_constraints.0,
+                    template_distribution_config.coinbase_output_constraints.1,
                 ),
             ))
             .await
@@ -2015,8 +2003,8 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         // Initialize the handlers for TemplateDistribution and MiningServer.
-        let tdc_handler = SiblingIoTemplateDistributionClientHandler::default();
-        let mining_handler = DummyMiningServerHandler::default();
+        let tdc_handler = SiblingIoTemplateDistributionClientHandler;
+        let mining_handler = DummyMiningServerHandler;
 
         // Create the Sv2ServerService with a wrong constructor.
         let mut server_service = Sv2ServerService::new(server_config, mining_handler).unwrap();
