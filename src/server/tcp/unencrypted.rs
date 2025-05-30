@@ -52,10 +52,12 @@ pub async fn start_unencrypted_tcp_server(
 mod tests {
     use crate::client::tcp::unencrypted::Sv2UnencryptedTcpClient;
     use crate::Sv2MessageFrame;
-    use const_sv2::{MESSAGE_TYPE_SETUP_CONNECTION, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS};
     use framing_sv2::framing::Sv2Frame;
     use once_cell::sync::Lazy;
     use roles_logic_sv2::common_messages_sv2::{Protocol, SetupConnection, SetupConnectionSuccess};
+    use roles_logic_sv2::common_messages_sv2::{
+        MESSAGE_TYPE_SETUP_CONNECTION, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
+    };
     use roles_logic_sv2::parsers::AnyMessage;
     use std::collections::HashSet;
     use std::net::{SocketAddr, TcpListener};

@@ -14,9 +14,8 @@ use roles_logic_sv2::parsers::{
     AnyMessage, CommonMessages,
     JobDeclaration::{
         AllocateMiningJobToken, AllocateMiningJobTokenSuccess, DeclareMiningJob,
-        DeclareMiningJobError, DeclareMiningJobSuccess, IdentifyTransactions,
-        IdentifyTransactionsSuccess, ProvideMissingTransactions, ProvideMissingTransactionsSuccess,
-        SubmitSolution,
+        DeclareMiningJobError, DeclareMiningJobSuccess, ProvideMissingTransactions,
+        ProvideMissingTransactionsSuccess, PushSolution,
     },
     TemplateDistribution::{self, CoinbaseOutputConstraints},
 };
@@ -148,19 +147,13 @@ impl Sv2MessageIo {
                 DeclareMiningJobSuccess(m) => {
                     AnyMessage::JobDeclaration(DeclareMiningJobSuccess(m.into_static()))
                 }
-                IdentifyTransactions(m) => {
-                    AnyMessage::JobDeclaration(IdentifyTransactions(m.into_static()))
-                }
-                IdentifyTransactionsSuccess(m) => {
-                    AnyMessage::JobDeclaration(IdentifyTransactionsSuccess(m.into_static()))
-                }
                 ProvideMissingTransactions(m) => {
                     AnyMessage::JobDeclaration(ProvideMissingTransactions(m.into_static()))
                 }
                 ProvideMissingTransactionsSuccess(m) => {
                     AnyMessage::JobDeclaration(ProvideMissingTransactionsSuccess(m.into_static()))
                 }
-                SubmitSolution(m) => AnyMessage::JobDeclaration(SubmitSolution(m.into_static())),
+                PushSolution(m) => AnyMessage::JobDeclaration(PushSolution(m.into_static())),
             },
             AnyMessage::TemplateDistribution(m) => match m {
                 CoinbaseOutputConstraints(m) => {

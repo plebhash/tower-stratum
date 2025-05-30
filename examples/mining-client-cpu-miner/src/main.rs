@@ -46,17 +46,18 @@ async fn main() -> anyhow::Result<()> {
 mod tests {
     use crate::client::MyMiningClient;
     use crate::config::MyMiningClientConfig;
-    use const_sv2::*;
     use integration_tests_sv2::{
-        sniffer::MessageDirection, start_pool, start_sniffer, start_template_provider,
+        interceptor::MessageDirection, start_pool, start_sniffer, start_template_provider,
     };
+    use roles_logic_sv2::common_messages_sv2::*;
+    use roles_logic_sv2::mining_sv2::*;
     #[tokio::test]
     async fn test_mining_client_standard_channel() {
         tracing_subscriber::fmt().init();
 
         let (_tp, tp_addr) = start_template_provider(None);
         let (_pool, pool_addr) = start_pool(Some(tp_addr)).await;
-        let (sniffer, sniffer_addr) = start_sniffer("".to_string(), pool_addr, false, None).await;
+        let (sniffer, sniffer_addr) = start_sniffer("", pool_addr, false, vec![]);
 
         // Give sniffer time to initialize
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;

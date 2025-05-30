@@ -74,11 +74,13 @@ pub async fn start_encrypted_tcp_server(
 mod tests {
     use crate::client::tcp::encrypted::Sv2EncryptedTcpClient;
     use crate::Sv2MessageFrame;
-    use const_sv2::{MESSAGE_TYPE_SETUP_CONNECTION, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS};
     use framing_sv2::framing::Sv2Frame;
     use key_utils::{Secp256k1PublicKey, Secp256k1SecretKey};
     use once_cell::sync::Lazy;
     use roles_logic_sv2::common_messages_sv2::{Protocol, SetupConnection, SetupConnectionSuccess};
+    use roles_logic_sv2::common_messages_sv2::{
+        MESSAGE_TYPE_SETUP_CONNECTION, MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
+    };
     use roles_logic_sv2::parsers::AnyMessage;
     use std::{
         collections::HashSet,

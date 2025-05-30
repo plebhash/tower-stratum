@@ -10,14 +10,15 @@ use crate::client::service::subprotocols::template_distribution::handler::NullSv
 use crate::client::service::subprotocols::template_distribution::handler::Sv2TemplateDistributionClientHandler;
 use crate::client::service::subprotocols::template_distribution::request::RequestToSv2TemplateDistributionClientService;
 use crate::client::tcp::encrypted::Sv2EncryptedTcpClient;
-use const_sv2::MESSAGE_TYPE_OPEN_EXTENDED_MINING_CHANNEL;
-use const_sv2::MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL;
-use const_sv2::MESSAGE_TYPE_SETUP_CONNECTION;
-use const_sv2::{MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS, MESSAGE_TYPE_SUBMIT_SOLUTION};
+use roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION;
 use roles_logic_sv2::common_messages_sv2::{Protocol, SetupConnection};
+use roles_logic_sv2::mining_sv2::MESSAGE_TYPE_OPEN_EXTENDED_MINING_CHANNEL;
+use roles_logic_sv2::mining_sv2::MESSAGE_TYPE_OPEN_STANDARD_MINING_CHANNEL;
 use roles_logic_sv2::mining_sv2::{OpenExtendedMiningChannel, OpenStandardMiningChannel};
 use roles_logic_sv2::parsers::{AnyMessage, CommonMessages, Mining, TemplateDistribution};
 use roles_logic_sv2::template_distribution_sv2::CoinbaseOutputConstraints;
+use roles_logic_sv2::template_distribution_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
+use roles_logic_sv2::template_distribution_sv2::MESSAGE_TYPE_SUBMIT_SOLUTION;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -1107,8 +1108,7 @@ mod tests {
     use crate::server::service::subprotocols::mining::handler::Sv2MiningServerHandler;
     use crate::server::service::subprotocols::mining::request::RequestToSv2MiningServer;
     use crate::server::service::Sv2ServerService;
-    use const_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
-    use integration_tests_sv2::sniffer::MessageDirection;
+    use integration_tests_sv2::interceptor::MessageDirection;
     use integration_tests_sv2::start_sniffer;
     use integration_tests_sv2::start_template_provider;
     use key_utils::Secp256k1PublicKey;
@@ -1127,6 +1127,7 @@ mod tests {
         SetNewPrevHash as SetNewPrevHashMining, SetTarget, SubmitSharesError, SubmitSharesSuccess,
         UpdateChannelError,
     };
+    use roles_logic_sv2::template_distribution_sv2::MESSAGE_TYPE_COINBASE_OUTPUT_CONSTRAINTS;
     use roles_logic_sv2::template_distribution_sv2::{
         NewTemplate, RequestTransactionDataError, RequestTransactionDataSuccess, SetNewPrevHash,
     };
@@ -1823,8 +1824,7 @@ mod tests {
         let (_tp, tp_address) = start_template_provider(None);
 
         // Start a sniffer to intercept messages between the client and the Template Provider.
-        let (tp_sniffer, tp_sniffer_addr) =
-            start_sniffer("".to_string(), tp_address, false, None).await;
+        let (tp_sniffer, tp_sniffer_addr) = start_sniffer("", tp_address, false, vec![]);
 
         // Update the client configuration to use the sniffer's address.
         if let Some(ref mut tdc) = client_config.template_distribution_config {

@@ -9,10 +9,9 @@ tokio = { version = "1", features = ["full", "tracing", "signal"] }
 tracing = "0.1"
 tracing-subscriber = "0.3.19"
 tower = { version = "0.4", features = ["util"] }
-framing_sv2 = { git = "https://github.com/stratum-mining/stratum", tag = "v1.3.0" }
-const_sv2 = { git = "https://github.com/stratum-mining/stratum", tag = "v1.3.0" }
-roles_logic_sv2 = { git = "https://github.com/stratum-mining/stratum", tag = "v1.3.0" }
-key-utils = { git = "https://github.com/stratum-mining/stratum", tag = "v1.3.0" }
+framing_sv2 = { git = "https://github.com/stratum-mining/stratum", branch = "main" }
+roles_logic_sv2 = { git = "https://github.com/stratum-mining/stratum", branch = "main" }
+key-utils = { git = "https://github.com/stratum-mining/stratum", branch = "main" }
 anyhow = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 toml = "0.8"
@@ -20,4 +19,4 @@ serde = { version = "1.0", features = ["derive"] }
 
 
 [dev-dependencies]
-integration_tests_sv2 = { git = "https://github.com/stratum-mining/stratum", tag = "v1.3.0" }
+integration_tests_sv2 = { git = "https://github.com/stratum-mining/stratum", branch = "main" }
