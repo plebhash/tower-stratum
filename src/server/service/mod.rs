@@ -417,7 +417,8 @@ where
             let response = ResponseFromSv2Server::SendReplyToClient(Box::new(Sv2MessageToClient {
                 client_id,
                 message: setup_connection_error.into(),
-                message_type: roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
+                message_type:
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
             }));
             return Ok(response);
         }
@@ -437,7 +438,8 @@ where
             let response = ResponseFromSv2Server::SendReplyToClient(Box::new(Sv2MessageToClient {
                 client_id,
                 message: setup_connection_error.into(),
-                message_type: roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
+                message_type:
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
             }));
             return Ok(response);
         }
@@ -483,8 +485,13 @@ where
             let response = ResponseFromSv2Server::SendReplyToClient(Box::new(Sv2MessageToClient {
                 client_id,
                 message: setup_connection_error.into(),
-                message_type: roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR
+                message_type:
+                    roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_ERROR,
             }));
+
+            if !Self::has_null_handler(Protocol::MiningProtocol) {
+                self.mining_handler.add_client(client_id, req.flags).await;
+            }
 
             return Ok(response);
         }
@@ -535,7 +542,8 @@ where
         let response = ResponseFromSv2Server::SendReplyToClient(Box::new(Sv2MessageToClient {
             client_id,
             message: setup_connection_success.into(),
-            message_type: roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
+            message_type:
+                roles_logic_sv2::common_messages_sv2::MESSAGE_TYPE_SETUP_CONNECTION_SUCCESS,
         }));
 
         Ok(response)
