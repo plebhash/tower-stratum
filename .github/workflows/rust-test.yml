@@ -44,17 +44,3 @@ jobs:
               (cd $example && cargo test)
             fi
           done
-
-      - name: Install cargo-tarpaulin for coverage
-        run: cargo install cargo-tarpaulin
-
-      - name: Run coverage with cargo-tarpaulin
-        run: cargo tarpaulin --out Xml
-        if: success()
-
-      - name: Upload coverage results to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          file: ./target/debug/deps/coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
-        if: success()
